@@ -24,12 +24,9 @@ export default function SettingsView({ currentUser, onUserUpdated, onLogout }) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  // Dark Mode State
+  // Dark Mode State synced with HTML root class
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return (
-      localStorage.getItem('theme') === 'dark' ||
-      (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    );
+    return document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
   });
 
   // Apply Dark Mode class to <html>
@@ -269,11 +266,11 @@ export default function SettingsView({ currentUser, onUserUpdated, onLogout }) {
             <button
               type="button"
               onClick={() => setIsDarkMode((prev) => !prev)}
-              className={`w-12 h-6 flex items-center rounded-full p-1 transition duration-300 ${
-                isDarkMode ? 'bg-indigo-600 justify-end' : 'bg-slate-200 dark:bg-slate-700 justify-start'
-              }`}
+              className={`w-12 h-6 flex items-center rounded-full p-1 transition-all duration-300 cursor-pointer ${isDarkMode ? 'bg-indigo-600 justify-end' : 'bg-slate-300 dark:bg-slate-700 justify-start'
+                }`}
+              aria-label="Toggle Dark Mode"
             >
-              <div className="w-4 h-4 rounded-full bg-white shadow-md transition" />
+              <div className="w-4 h-4 rounded-full bg-white shadow-md transition-all" />
             </button>
           </div>
         </div>
