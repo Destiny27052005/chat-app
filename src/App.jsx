@@ -237,91 +237,91 @@ export default function App() {
     return <AuthModal onAuthSuccess={(user) => setCurrentUser(user)} />;
   }
 
-  return (
-    <div className="flex h-screen w-full bg-[#f8f9fc] overflow-hidden">
-      <SidebarNav
-        currentUser={currentUser}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onNewChat={() => setActiveTab('contacts')}
-        onLogout={handleLogout}
-      />
+ return (
+  <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden transition-colors">
+    <SidebarNav
+      currentUser={currentUser}
+      activeTab={activeTab}
+      onTabChange={setActiveTab}
+      onNewChat={() => setActiveTab('contacts')}
+      onLogout={handleLogout}
+    />
 
-      {/* Main Tab Views */}
-      {activeTab === 'chats' && (
-        <div className="flex-1 flex h-full overflow-hidden">
-          <ChatList
-            rooms={rooms}
-            activeRoom={activeRoom}
-            isLoading={isLoadingRooms}
-            currentUser={currentUser}
-            onSelectRoom={setActiveRoom}
-          />
-
-          <ChatArea
-            activeRoom={activeRoom}
-            currentUser={currentUser}
-            socket={socket}
-            onBack={() => setActiveRoom(null)}
-          />
-
-          <div className="hidden lg:flex h-full">
-            <DetailsSidebar
-              activeRoom={activeRoom}
-              currentUser={currentUser}
-              onRoomUpdated={(updatedRoom) => {
-                setActiveRoom(updatedRoom);
-                setRooms((prev) =>
-                  prev.map((r) => (r._id === updatedRoom._id ? updatedRoom : r))
-                );
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'groups' && (
-        <GroupsView
+    {/* Main Tab Views */}
+    {activeTab === 'chats' && (
+      <div className="flex-1 flex h-full overflow-hidden bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800">
+        <ChatList
           rooms={rooms}
-          onSelectRoom={(room) => {
-            setActiveRoom(room);
-            setActiveTab('chats');
-          }}
-          onRoomCreated={(newRoom) => {
-            setRooms((prev) => [newRoom, ...prev]);
-            setActiveRoom(newRoom);
-            setActiveTab('chats');
-          }}
-        />
-      )}
-
-      {activeTab === 'contacts' && (
-        <ContactsView onStartChatWithUser={handleStartDirectChat} />
-      )}
-
-      {activeTab === 'calls' && (
-        <CallsView currentUser={currentUser} socket={socket} />
-      )}
-
-      {activeTab === 'saved' && <SavedMessagesView />}
-
-      {activeTab === 'settings' && (
-        <SettingsView
+          activeRoom={activeRoom}
+          isLoading={isLoadingRooms}
           currentUser={currentUser}
-          onUserUpdated={handleUserUpdated}
-          onLogout={handleLogout}
+          onSelectRoom={setActiveRoom}
         />
-      )}
 
-      {/* Global Call Screen Overlay */}
-      {globalCallSession && (
-        <CallModal
-          callData={globalCallSession}
+        <ChatArea
+          activeRoom={activeRoom}
           currentUser={currentUser}
           socket={socket}
-          onClose={() => setGlobalCallSession(null)}
+          onBack={() => setActiveRoom(null)}
         />
-      )}
-    </div>
-  );
+
+        <div className="hidden lg:flex h-full">
+          <DetailsSidebar
+            activeRoom={activeRoom}
+            currentUser={currentUser}
+            onRoomUpdated={(updatedRoom) => {
+              setActiveRoom(updatedRoom);
+              setRooms((prev) =>
+                prev.map((r) => (r._id === updatedRoom._id ? updatedRoom : r))
+              );
+            }}
+          />
+        </div>
+      </div>
+    )}
+
+    {activeTab === 'groups' && (
+      <GroupsView
+        rooms={rooms}
+        onSelectRoom={(room) => {
+          setActiveRoom(room);
+          setActiveTab('chats');
+        }}
+        onRoomCreated={(newRoom) => {
+          setRooms((prev) => [newRoom, ...prev]);
+          setActiveRoom(newRoom);
+          setActiveTab('chats');
+        }}
+      />
+    )}
+
+    {activeTab === 'contacts' && (
+      <ContactsView onStartChatWithUser={handleStartDirectChat} />
+    )}
+
+    {activeTab === 'calls' && (
+      <CallsView currentUser={currentUser} socket={socket} />
+    )}
+
+    {activeTab === 'saved' && <SavedMessagesView />}
+
+    {activeTab === 'settings' && (
+      <SettingsView
+        currentUser={currentUser}
+        onUserUpdated={handleUserUpdated}
+        onLogout={handleLogout}
+      />
+    )}
+
+    {/* Global Call Screen Overlay */}
+    {globalCallSession && (
+      <CallModal
+        callData={globalCallSession}
+        currentUser={currentUser}
+        socket={socket}
+        onClose={() => setGlobalCallSession(null)}
+      />
+    )}
+  </div>
+);
 }

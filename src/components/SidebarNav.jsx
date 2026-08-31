@@ -1,99 +1,69 @@
-import {
-    MessageSquare,
-    Users,
-    UserCheck,
-    Phone,
-    Bookmark,
-    Settings,
-    LogOut
-} from 'lucide-react';
+// src/components/SidebarNav.jsx
+import { MessageSquare, Users, Phone, Bookmark, Settings, LogOut } from 'lucide-react';
 
-export default function SidebarNav({
-    currentUser,
-    activeTab,
-    onTabChange,
-    onLogout
-}) {
+export default function SidebarNav({ currentUser, activeTab, onTabChange, onLogout }) {
     const navItems = [
-        { id: 'chats', label: 'All Chats', icon: MessageSquare },
+        { id: 'chats', label: 'Chats', icon: MessageSquare },
         { id: 'groups', label: 'Groups', icon: Users },
-        { id: 'contacts', label: 'Contacts', icon: UserCheck },
         { id: 'calls', label: 'Calls', icon: Phone },
         { id: 'saved', label: 'Saved', icon: Bookmark },
         { id: 'settings', label: 'Settings', icon: Settings },
     ];
 
-    const userAvatar =
-        currentUser?.avatar ||
-        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-            currentUser?.name || 'User'
-        )}`;
-
     return (
-        <aside className="hidden md:flex w-64 bg-white border-r border-slate-100 flex-col justify-between p-4 shrink-0 h-full select-none">
-            {/* Brand & Nav List */}
-            <div>
-                <div className="flex items-center gap-2.5 px-3 py-2 mb-6">
-                    <div className="w-9 h-9 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-100 font-bold text-lg">
-                        C
-                    </div>
-                    <span className="font-bold text-slate-800 text-lg tracking-tight">Chattr</span>
-                </div>
-
-                <nav className="space-y-1">
-                    {navItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = activeTab === item.id;
-                        return (
-                            <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => onTabChange(item.id)}
-                                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition ${isActive
-                                        ? 'bg-indigo-50 text-indigo-600'
-                                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                                    }`}
-                            >
-                                <Icon size={18} className={isActive ? 'text-indigo-600' : 'text-slate-400'} />
-                                <span>{item.label}</span>
-                            </button>
-                        );
-                    })}
-                </nav>
+        <aside className="w-16 md:w-20 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-6 justify-between select-none transition-colors">
+            {/* Brand Icon */}
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-600/30">
+                C
             </div>
 
-            {/* User Profile Card */}
-            <div className="bg-slate-50/80 border border-slate-100/80 rounded-2xl p-2.5 flex items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2.5 min-w-0">
-                    {/* Avatar with Green Online Indicator */}
-                    <div className="relative shrink-0">
-                        <img
-                            src={userAvatar}
-                            alt={currentUser?.name || 'User'}
-                            className="w-9 h-9 rounded-full object-cover border border-slate-200"
-                        />
-                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full ring-1 ring-emerald-500/20 animate-pulse" />
-                    </div>
+            {/* Navigation Buttons */}
+            <nav className="flex flex-col gap-3">
+                {navItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => onTabChange(item.id)}
+                            className={`p-3 rounded-2xl transition duration-200 relative ${isActive
+                                    ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold'
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                                }`}
+                            title={item.label}
+                        >
+                            <Icon size={22} />
+                            {isActive && (
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full" />
+                            )}
+                        </button>
+                    );
+                })}
+            </nav>
 
-                    <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-slate-800 truncate" title={currentUser?.name}>
-                            {currentUser?.name || 'Guest User'}
-                        </h4>
-                        <p className="text-[10px] font-medium text-emerald-600 flex items-center gap-1">
-                            <span>Online</span>
-                        </p>
-                    </div>
-                </div>
-
-                {/* Logout Action */}
+            {/* Profile & Logout */}
+            <div className="flex flex-col items-center gap-4">
                 <button
                     type="button"
                     onClick={onLogout}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition shrink-0"
-                    title="Sign out"
+                    className="p-3 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-2xl transition"
+                    title="Logout"
                 >
-                    <LogOut size={16} />
+                    <LogOut size={20} />
                 </button>
+
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-sm border border-slate-200 dark:border-slate-700">
+                    {currentUser?.avatar ? (
+                        <img
+                            src={currentUser.avatar}
+                            alt="Profile"
+                            className="w-full h-full object-cover rounded-full"
+                        />
+                    ) : (
+                        currentUser?.name?.charAt(0) || 'U'
+                    )}
+                </div>
             </div>
         </aside>
     );
