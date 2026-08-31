@@ -247,7 +247,7 @@ export default function App() {
 
       {/* Main Tab Views */}
       {activeTab === 'chats' && (
-        <>
+        <div className="flex-1 flex h-full overflow-hidden">
           <ChatList
             rooms={rooms}
             activeRoom={activeRoom}
@@ -255,18 +255,27 @@ export default function App() {
             currentUser={currentUser}
             onSelectRoom={setActiveRoom}
           />
-          <ChatArea activeRoom={activeRoom} currentUser={currentUser} socket={socket} />
-          <DetailsSidebar
+
+          <ChatArea
             activeRoom={activeRoom}
             currentUser={currentUser}
-            onRoomUpdated={(updatedRoom) => {
-              setActiveRoom(updatedRoom);
-              setRooms((prev) =>
-                prev.map((r) => (r._id === updatedRoom._id ? updatedRoom : r))
-              );
-            }}
+            socket={socket}
+            onBack={() => setActiveRoom(null)}
           />
-        </>
+
+          <div className="hidden lg:flex h-full">
+            <DetailsSidebar
+              activeRoom={activeRoom}
+              currentUser={currentUser}
+              onRoomUpdated={(updatedRoom) => {
+                setActiveRoom(updatedRoom);
+                setRooms((prev) =>
+                  prev.map((r) => (r._id === updatedRoom._id ? updatedRoom : r))
+                );
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {activeTab === 'groups' && (

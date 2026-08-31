@@ -16,6 +16,7 @@ import {
   FileText,
   Loader2,
   X,
+  ArrowLeft,
   DownloadCloud
 } from 'lucide-react';
 
@@ -23,7 +24,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const QUICK_EMOJIS = ['👍', '❤️', '🔥', '😂', '🎉', '👏', '🚀', '💯', '😊', '🙌', '✨', '🙏'];
 
-export default function ChatArea({ activeRoom, currentUser, socket }) {
+export default function ChatArea({ activeRoom, currentUser, socket, onBack }) {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -279,7 +280,11 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       isIncoming: false,
       type,
       roomId: activeRoom._id,
-      otherUser: { name: displayName, avatar: displayAvatar },
+      otherUser: {
+        _id: otherMember?._id,
+        name: displayName,
+        avatar: displayAvatar,
+      },
     });
   };
 
@@ -321,26 +326,36 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
   if (!activeRoom) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 text-slate-400">
+      <div className="hidden md:flex flex-1 flex-col items-center justify-center bg-slate-50/50 text-slate-400 h-full">
         <p className="text-sm font-medium">Select a chat to start messaging</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#fafafc] h-full overflow-hidden relative">
+    <div className="flex-1 flex flex-col bg-[#fafafc] h-full w-full overflow-hidden relative">
       {/* Top Header */}
-      <div className="h-16 px-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-3">
+      <div className="h-16 px-4 md:px-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Mobile Back Button */}
+          <button
+            type="button"
+            onClick={onBack}
+            className="md:hidden p-1.5 -ml-1 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition shrink-0"
+            title="Back to chats"
+          >
+            <ArrowLeft size={19} />
+          </button>
+
           {displayAvatar ? (
-            <img src={displayAvatar} className="w-10 h-10 rounded-full object-cover" alt={displayName} />
+            <img src={displayAvatar} className="w-10 h-10 rounded-full object-cover shrink-0" alt={displayName} />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0">
               {activeRoom.isGroup ? <Users size={18} /> : <span>{displayName.charAt(0)}</span>}
             </div>
           )}
-          <div>
-            <h3 className="text-sm font-bold text-slate-800">{displayName}</h3>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-slate-800 truncate">{displayName}</h3>
             <p className={`text-xs ${isContactOnline ? 'text-emerald-500 font-medium' : 'text-slate-400'}`}>
               {activeRoom.isGroup
                 ? `${activeRoom.members?.length || 0} members`
@@ -352,7 +367,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2 text-slate-500">
+        <div className="flex items-center gap-1 md:gap-2 text-slate-500 shrink-0">
           <button
             type="button"
             onClick={() => setShowSearch((prev) => !prev)}
@@ -419,7 +434,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
       {/* In-Chat Search Bar */}
       {showSearch && (
-        <div className="bg-white border-b border-slate-100 px-6 py-2.5 flex items-center justify-between shrink-0 shadow-xs z-10">
+        <div className="bg-white border-b border-slate-100 px-4 md:px-6 py-2.5 flex items-center justify-between shrink-0 shadow-xs z-10">
           <div className="flex items-center gap-2 flex-1 max-w-md">
             <Search size={15} className="text-slate-400" />
             <input
@@ -453,7 +468,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       )}
 
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-5">
         <div className="flex justify-center">
           <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
             {searchQuery ? `Searching: "${searchQuery}"` : 'Conversation History'}
@@ -477,19 +492,19 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
             const isMe = senderId === currentUser._id;
 
             return (
-              <div key={msg._id} className={`flex gap-3 group ${isMe ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg._id} className={`flex gap-2.5 md:gap-3 group ${isMe ? 'justify-end' : 'justify-start'}`}>
                 {!isMe && (
                   <img
                     src={
                       msg.sender?.avatar ||
                       `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(msg.sender?.name || 'User')}`
                     }
-                    className="w-8 h-8 rounded-full object-cover self-end mb-1"
+                    className="w-7 h-7 md:w-8 md:h-8 rounded-full object-cover self-end mb-1 shrink-0"
                     alt={msg.sender?.name || 'Sender'}
                   />
                 )}
 
-                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[70%]`}>
+                <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[85%] md:max-w-[70%]`}>
                   {!isMe && (
                     <span className="text-[11px] font-semibold text-indigo-600 mb-1">
                       {msg.sender?.name || 'User'}
@@ -497,7 +512,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
                   )}
 
                   <div
-                    className={`relative p-3.5 rounded-2xl text-sm leading-relaxed ${
+                    className={`relative p-3 md:p-3.5 rounded-2xl text-sm leading-relaxed ${
                       isMe
                         ? 'bg-indigo-50/70 text-slate-800 rounded-br-none border border-indigo-100/50'
                         : 'bg-white text-slate-800 rounded-bl-none shadow-sm border border-slate-100'
@@ -506,9 +521,9 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
                     {msg.content && <p className="whitespace-pre-line">{msg.content}</p>}
 
                     {msg.file?.url && (
-                      <div className="mt-2 flex items-center justify-between p-2.5 bg-white border border-slate-200/60 rounded-xl gap-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center font-bold text-xs">
+                      <div className="mt-2 flex items-center justify-between p-2.5 bg-white border border-slate-200/60 rounded-xl gap-4 md:gap-6">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 md:w-9 md:h-9 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center font-bold text-xs shrink-0">
                             <FileText size={16} />
                           </div>
                           <div className="min-w-0">
@@ -521,7 +536,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
                           target="_blank"
                           rel="noopener noreferrer"
                           download
-                          className="text-slate-400 hover:text-slate-600"
+                          className="text-slate-400 hover:text-slate-600 shrink-0"
                         >
                           <Download size={16} />
                         </a>
@@ -555,12 +570,11 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       </div>
 
       {/* Input Composer */}
-      <div className="p-4 bg-white border-t border-slate-100 shrink-0 relative">
-        {/* Quick Emoji Picker Popover */}
+      <div className="p-3 md:p-4 bg-white border-t border-slate-100 shrink-0 relative">
         {showEmojiPicker && (
           <div
             ref={emojiPickerRef}
-            className="absolute bottom-20 left-6 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-3 z-30 flex gap-2 flex-wrap max-w-xs animate-in zoom-in-95 duration-100"
+            className="absolute bottom-18 left-4 md:left-6 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-3 z-30 flex gap-2 flex-wrap max-w-xs animate-in zoom-in-95 duration-100"
           >
             {QUICK_EMOJIS.map((emoji) => (
               <button
@@ -590,7 +604,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="text-slate-400 hover:text-slate-600 transition disabled:opacity-50 p-1"
+            className="text-slate-400 hover:text-slate-600 transition disabled:opacity-50 p-1 shrink-0"
             title="Attach file"
           >
             {uploading ? <Loader2 size={18} className="animate-spin text-indigo-600" /> : <Paperclip size={18} />}
@@ -608,13 +622,13 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
                 handleSendMessage();
               }
             }}
-            className="flex-1 bg-transparent text-sm focus:outline-none text-slate-700"
+            className="flex-1 bg-transparent text-sm focus:outline-none text-slate-700 min-w-0"
           />
 
           <button
             type="button"
             onClick={() => setShowEmojiPicker((prev) => !prev)}
-            className={`p-1 transition rounded-lg ${
+            className={`p-1 transition rounded-lg shrink-0 ${
               showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'
             }`}
             title="Emojis"
@@ -626,7 +640,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
             type="button"
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || uploading}
-            className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition disabled:opacity-40"
+            className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition disabled:opacity-40 shrink-0"
           >
             <Send size={15} />
           </button>
