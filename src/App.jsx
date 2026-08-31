@@ -214,7 +214,9 @@ export default function App() {
       prevRooms.map((room) => ({
         ...room,
         members: room.members?.map((m) =>
-          m._id === updatedUser._id ? { ...m, avatar: updatedUser.avatar, name: updatedUser.name } : m
+          m._id === updatedUser._id
+            ? { ...m, avatar: updatedUser.avatar, name: updatedUser.name }
+            : m
         ),
       }))
     );
@@ -306,8 +308,8 @@ export default function App() {
       {activeTab === 'settings' && (
         <SettingsView
           currentUser={currentUser}
-          onLogout={handleLogout}
           onUserUpdated={handleUserUpdated}
+          onLogout={handleLogout}
         />
       )}
 
