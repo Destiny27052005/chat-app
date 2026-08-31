@@ -9,6 +9,7 @@ const ICE_SERVERS = {
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
   ],
 };
 
@@ -82,12 +83,23 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
     return () => clearInterval(timer);
   }, [callAccepted]);
 
-  // Setup Peer Connection when call is active/accepted
+  // Setup Peer Connection with optimized bandwidth constraints
   const setupWebRTC = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: callData.type === 'video',
-        audio: true,
+        video:
+          callData.type === 'video'
+            ? {
+                width: { ideal: 640, max: 1280 },
+                height: { ideal: 480, max: 720 },
+                frameRate: { ideal: 24, max: 30 },
+              }
+            : false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
 
       localStreamRef.current = stream;
@@ -219,7 +231,6 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
   return (
     <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 select-none">
       <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col items-center relative overflow-hidden animate-in zoom-in-95 duration-150">
-        
         {/* Active Connected Screen */}
         {callAccepted ? (
           <>
