@@ -12,7 +12,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
   const [inputMessage, setInputMessage] = useState('');
   const [uploading, setUploading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  
+
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -23,11 +23,9 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
   const formatMessageTime = (dateValue) => {
     if (!dateValue) return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
     if (typeof dateValue === 'string' && (dateValue.includes('AM') || dateValue.includes('PM'))) {
       return dateValue;
     }
-
     const date = new Date(dateValue);
     return isNaN(date.getTime())
       ? String(dateValue)
@@ -37,6 +35,21 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
   const scrollToBottom = (behavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
+
+  // Helper to determine contact details for 1-on-1 vs Group chats
+  const otherMember = !activeRoom?.isGroup
+    ? activeRoom?.members?.find((m) => (m._id || m) !== currentUser?._id)
+    : null;
+
+  const displayName = activeRoom?.isGroup
+    ? activeRoom?.name
+    : otherMember?.name || activeRoom?.name || 'Chat';
+
+  const displayAvatar = activeRoom?.isGroup
+    ? activeRoom?.avatar
+    : otherMember?.avatar || activeRoom?.avatar;
+
+  const isContactOnline = activeRoom?.isGroup ? false : Boolean(otherMember?.isOnline);
 
   // 1. Fetch Room History & Manage Room Socket Subscriptions
   useEffect(() => {
@@ -51,11 +64,12 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
           headers: getAuthHeaders(),
         });
         if (isMounted) {
-          setMessages(res.data);
+          setMessages(Array.isArray(res.data) ? res.data : []);
           setTimeout(() => scrollToBottom('auto'), 50);
         }
       } catch (err) {
         console.error('Failed to load messages:', err?.response?.data || err.message);
+        if (isMounted) setMessages([]);
       } finally {
         if (isMounted) {
           setLoadingHistory(false);
@@ -74,7 +88,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       if (incomingRoomId === activeRoom._id) {
         setMessages((prev) => {
           if (prev.some((m) => m._id === newMsg._id)) return prev;
-          return [...prev, newMsg];
+          return [...prev.filter((m) => !m._id.toString().startsWith('temp-')), newMsg];
         });
       }
     };
@@ -100,7 +114,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
     };
   }, [activeRoom?._id, socket]);
 
-  // Scroll down whenever messages list changes
+  // Auto-scroll when messages update
   useEffect(() => {
     scrollToBottom('smooth');
   }, [messages]);
@@ -112,22 +126,21 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
     const payload = {
       _id: `temp-${Date.now()}`,
       roomId: activeRoom._id,
-      senderId: currentUser._id,
+      room: activeRoom._id,
       sender: currentUser,
       content: inputMessage.trim(),
       file: null,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     // Optimistic UI update
     setMessages((prev) => [...prev, payload]);
-    
+
     // Emit to backend
     socket.emit('send_message', {
       roomId: activeRoom._id,
-      senderId: currentUser._id,
       content: inputMessage.trim(),
-      file: null
+      file: null,
     });
 
     setInputMessage('');
@@ -146,33 +159,32 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       const res = await axios.post(`${API_BASE_URL}/upload`, formData, {
         headers: {
           ...getAuthHeaders(),
-          'Content-Type': 'multipart/form-data'
-        }
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
       const filePayload = {
         name: res.data.name || file.name,
         url: res.data.url,
         size: res.data.size || `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
-        fileType: res.data.fileType || file.type
+        fileType: res.data.fileType || file.type,
       };
 
       const optimisticMsg = {
         _id: `temp-${Date.now()}`,
         roomId: activeRoom._id,
-        senderId: currentUser._id,
+        room: activeRoom._id,
         sender: currentUser,
         content: '',
         file: filePayload,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, optimisticMsg]);
 
       socket.emit('send_message', {
         roomId: activeRoom._id,
-        senderId: currentUser._id,
         content: '',
-        file: filePayload
+        file: filePayload,
       });
     } catch (err) {
       console.error('File upload failed:', err?.response?.data || err.message);
@@ -186,7 +198,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
   const handleDeleteMessage = (messageId) => {
     socket.emit('delete_message', {
       messageId,
-      roomId: activeRoom._id
+      roomId: activeRoom._id,
     });
 
     setMessages((prev) =>
@@ -211,16 +223,22 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       {/* Top Header */}
       <div className="h-16 px-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
-          {activeRoom.avatar ? (
-            <img src={activeRoom.avatar} className="w-10 h-10 rounded-full object-cover" alt={activeRoom.name} />
+          {displayAvatar ? (
+            <img src={displayAvatar} className="w-10 h-10 rounded-full object-cover" alt={displayName} />
           ) : (
             <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">
-              <Users size={18} />
+              {activeRoom.isGroup ? <Users size={18} /> : <span>{displayName.charAt(0)}</span>}
             </div>
           )}
           <div>
-            <h3 className="text-sm font-bold text-slate-800">{activeRoom.name || 'Chat'}</h3>
-            <p className="text-xs text-slate-400">{activeRoom.members?.length || 0} members</p>
+            <h3 className="text-sm font-bold text-slate-800">{displayName}</h3>
+            <p className={`text-xs ${isContactOnline ? 'text-emerald-500 font-medium' : 'text-slate-400'}`}>
+              {activeRoom.isGroup
+                ? `${activeRoom.members?.length || 0} members`
+                : isContactOnline
+                ? 'Online'
+                : 'Offline'}
+            </p>
           </div>
         </div>
 
@@ -244,6 +262,10 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
           <div className="flex justify-center py-6 text-slate-400 gap-2 items-center text-xs">
             <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
             Loading messages...
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="text-center py-12 text-slate-400 text-xs">
+            No messages yet. Send a message to start the conversation!
           </div>
         ) : (
           messages.map((msg) => {
@@ -276,7 +298,6 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
                   >
                     {msg.content && <p className="whitespace-pre-line">{msg.content}</p>}
 
-                    {/* File Attachment Card */}
                     {msg.file?.url && (
                       <div className="mt-2 flex items-center justify-between p-2.5 bg-white border border-slate-200/60 rounded-xl gap-6">
                         <div className="flex items-center gap-3">
@@ -300,7 +321,6 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
                       </div>
                     )}
 
-                    {/* Message Delete Action */}
                     {isMe && !msg.isDeleted && (
                       <button
                         onClick={() => handleDeleteMessage(msg._id)}
@@ -312,7 +332,6 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
                     )}
                   </div>
 
-                  {/* Metadata (Time & Read Status) */}
                   <div className="flex items-center gap-1.5 mt-1 px-1">
                     <span className="text-[10px] text-slate-400">
                       {formatMessageTime(msg.createdAt)}

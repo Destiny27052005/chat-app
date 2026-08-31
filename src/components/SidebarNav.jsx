@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import {
   MessageSquare,
   Users,
@@ -7,11 +7,19 @@ import {
   Bookmark,
   Settings,
   SquarePen,
-  Search
+  Search,
+  LogOut
 } from 'lucide-react';
 
-export default function SidebarNav({ currentUser, onNewChat, onSearchChange, unreadTotal = 8 }) {
-  const [activeTab, setActiveTab] = useState('chats');
+export default function SidebarNav({
+  currentUser,
+  activeTab = 'chats',
+  onTabChange,
+  onNewChat,
+  onSearchChange,
+  onLogout,
+  unreadTotal = 0
+}) {
   const searchInputRef = useRef(null);
 
   // Global ⌘K / Ctrl+K shortcut listener to focus search input
@@ -39,14 +47,17 @@ export default function SidebarNav({ currentUser, onNewChat, onSearchChange, unr
   const userName = currentUser?.name || 'User Profile';
   const userAvatar =
     currentUser?.avatar ||
-    `https://api.dicebear.com/7.x/initials/svg?seed=${userName}`;
+    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userName)}`;
 
   return (
     <div className="w-64 bg-white border-r border-slate-100 flex flex-col justify-between p-4 shrink-0 select-none h-full">
       <div>
         {/* App Title & New Chat Action */}
         <div className="flex items-center justify-between px-2 mb-6">
-          <div className="flex items-center gap-2.5">
+          <div
+            className="flex items-center gap-2.5 cursor-pointer"
+            onClick={() => onTabChange?.('chats')}
+          >
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold shadow-sm shadow-indigo-100">
               <MessageSquare size={18} />
             </div>
@@ -87,10 +98,10 @@ export default function SidebarNav({ currentUser, onNewChat, onSearchChange, unr
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => onTabChange?.(item.id)}
                 className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-sm transition ${
                   isActive
-                    ? 'bg-indigo-50/70 text-indigo-600'
+                    ? 'bg-indigo-50/70 text-indigo-600 font-semibold'
                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                 }`}
               >
@@ -110,30 +121,43 @@ export default function SidebarNav({ currentUser, onNewChat, onSearchChange, unr
         </nav>
       </div>
 
-      {/* Current User Status Bar */}
-      <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100">
-        <div className="relative shrink-0">
-          <img
-            src={userAvatar}
-            className="w-10 h-10 rounded-full object-cover border border-slate-200"
-            alt={userName}
-          />
-          <span
-            className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${
-              currentUser?.isOnline !== false ? 'bg-emerald-500' : 'bg-slate-400'
-            }`}
-          />
+      {/* User Status Bar & Logout */}
+      <div className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-100">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative shrink-0">
+            <img
+              src={userAvatar}
+              className="w-10 h-10 rounded-full object-cover border border-slate-200"
+              alt={userName}
+            />
+            <span
+              className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${
+                currentUser?.isOnline !== false ? 'bg-emerald-500' : 'bg-slate-400'
+              }`}
+            />
+          </div>
+          <div className="flex flex-col flex-1 leading-tight min-w-0">
+            <span className="text-sm font-semibold text-slate-800 truncate">{userName}</span>
+            <span
+              className={`text-xs font-medium ${
+                currentUser?.isOnline !== false ? 'text-emerald-600' : 'text-slate-400'
+              }`}
+            >
+              {currentUser?.isOnline !== false ? 'Online' : 'Offline'}
+            </span>
+          </div>
         </div>
-        <div className="flex flex-col flex-1 leading-tight min-w-0">
-          <span className="text-sm font-semibold text-slate-800 truncate">{userName}</span>
-          <span
-            className={`text-xs font-medium ${
-              currentUser?.isOnline !== false ? 'text-emerald-600' : 'text-slate-400'
-            }`}
+
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            title="Log out"
+            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-white transition shrink-0 ml-1"
           >
-            {currentUser?.isOnline !== false ? 'Online' : 'Offline'}
-          </span>
-        </div>
+            <LogOut size={16} />
+          </button>
+        )}
       </div>
     </div>
   );

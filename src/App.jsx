@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Loader2 } from 'lucide-react';
 import { socket, connectSocket, disconnectSocket } from './socket.js';
 import SidebarNav from './components/SidebarNav.jsx';
 import ChatList from './components/ChatList.jsx';
@@ -16,30 +17,51 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(() => {
+    return Boolean(localStorage.getItem('token'));
+  });
   const [activeTab, setActiveTab] = useState('chats');
   const [rooms, setRooms] = useState([]);
   const [activeRoom, setActiveRoom] = useState(null);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
 
-  // 1. Initial Authentication Check (/me)
+  // 1. Initial Session Restoration (/me)
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    axios
-      .get(`${API_BASE_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
-        setCurrentUser(res.data);
-      })
-      .catch(() => {
+    let isMounted = true;
+
+    const restoreSession = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (isMounted) {
+          setCurrentUser(res.data);
+        }
+      } catch (err) {
+        console.error('Session expired or invalid:', err?.response?.data || err.message);
         localStorage.removeItem('token');
-        setCurrentUser(null);
-      });
+        if (isMounted) {
+          setCurrentUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
+      }
+    };
+
+    restoreSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // 2. Fetch Chat Rooms & Sockets when authenticated
+  // 2. Fetch Chat Rooms & Manage Real-time WebSocket Listeners
   useEffect(() => {
     if (!currentUser?._id) return;
 
@@ -61,7 +83,7 @@ export default function App() {
           }
         }
       } catch (err) {
-        console.error('Failed to load rooms:', err);
+        console.error('Failed to load rooms:', err?.response?.data || err.message);
       } finally {
         if (isMounted) {
           setIsLoadingRooms(false);
@@ -71,7 +93,7 @@ export default function App() {
 
     fetchRooms();
 
-    // Listen for real-time presence changes
+    // Online presence listener
     const handlePresenceUpdated = ({ userId, isOnline }) => {
       setRooms((prevRooms) =>
         prevRooms.map((room) => ({
@@ -79,7 +101,11 @@ export default function App() {
           members: room.members?.map((m) =>
             m._id === userId ? { ...m, isOnline } : m
           ),
-          isOnline: room.isGroup ? room.isOnline : (room.members?.find((m) => m._id === userId) ? isOnline : room.isOnline),
+          isOnline: room.isGroup
+            ? room.isOnline
+            : room.members?.some((m) => m._id === userId)
+              ? isOnline
+              : room.isOnline,
         }))
       );
 
@@ -94,7 +120,7 @@ export default function App() {
       });
     };
 
-    // Listen for incoming messages to update chat list previews & sort order
+    // Incoming message room order updater
     const handleReceiveMessage = (newMsg) => {
       const targetRoomId = newMsg.roomId || newMsg.room;
       setRooms((prevRooms) => {
@@ -107,11 +133,11 @@ export default function App() {
             content: newMsg.content || newMsg.file?.name || 'Attachment',
             createdAt: newMsg.createdAt,
           },
+          updatedAt: newMsg.createdAt,
         };
 
-        // Move active room to top
-        const filtered = prevRooms.filter((r) => r._id !== targetRoomId);
-        return [updatedRoom, ...filtered];
+        const remaining = prevRooms.filter((r) => r._id !== targetRoomId);
+        return [updatedRoom, ...remaining];
       });
     };
 
@@ -126,7 +152,7 @@ export default function App() {
     };
   }, [currentUser?._id]);
 
-  // 3. Handle Logout
+  // 3. User Actions
   const handleLogout = () => {
     localStorage.removeItem('token');
     disconnectSocket();
@@ -136,7 +162,6 @@ export default function App() {
     setActiveTab('chats');
   };
 
-  // 4. Start Direct Chat from Contacts Directory
   const handleStartDirectChat = async (contactUser) => {
     try {
       const token = localStorage.getItem('token');
@@ -155,10 +180,33 @@ export default function App() {
       setActiveRoom(res.data);
       setActiveTab('chats');
     } catch (err) {
-      console.error('Failed to start chat:', err);
+      console.error('Failed to start chat:', err?.response?.data || err.message);
     }
   };
 
+  const handleUserUpdated = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    setRooms((prevRooms) =>
+      prevRooms.map((room) => ({
+        ...room,
+        members: room.members?.map((m) =>
+          m._id === updatedUser._id ? { ...m, avatar: updatedUser.avatar, name: updatedUser.name } : m
+        ),
+      }))
+    );
+  };
+
+  // 4. Session Loading Screen
+  if (isCheckingAuth) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8f9fc] text-slate-500">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-3" />
+        <p className="text-sm font-medium">Restoring your session...</p>
+      </div>
+    );
+  }
+
+  // 5. Unauthenticated Modal
   if (!currentUser) {
     return <AuthModal onAuthSuccess={(user) => setCurrentUser(user)} />;
   }
@@ -173,7 +221,7 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Conditional Views */}
+      {/* Main Tab Views */}
       {activeTab === 'chats' && (
         <>
           <ChatList
@@ -183,7 +231,16 @@ export default function App() {
             onSelectRoom={setActiveRoom}
           />
           <ChatArea activeRoom={activeRoom} currentUser={currentUser} socket={socket} />
-          <DetailsSidebar activeRoom={activeRoom} />
+          <DetailsSidebar
+            activeRoom={activeRoom}
+            currentUser={currentUser}
+            onRoomUpdated={(updatedRoom) => {
+              setActiveRoom(updatedRoom);
+              setRooms((prev) =>
+                prev.map((r) => (r._id === updatedRoom._id ? updatedRoom : r))
+              );
+            }}
+          />
         </>
       )}
 
@@ -211,7 +268,11 @@ export default function App() {
       {activeTab === 'saved' && <SavedMessagesView />}
 
       {activeTab === 'settings' && (
-        <SettingsView currentUser={currentUser} onLogout={handleLogout} />
+        <SettingsView
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onUserUpdated={handleUserUpdated}
+        />
       )}
     </div>
   );
