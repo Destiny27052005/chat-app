@@ -12,10 +12,12 @@ import CallsView from './components/CallsView.jsx';
 import SavedMessagesView from './components/SavedMessagesView.jsx';
 import SettingsView from './components/SettingsView.jsx';
 import AuthModal from './components/AuthModal.jsx';
+import CallModal from './components/CallModal.jsx';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function App() {
+  const [globalCallSession, setGlobalCallSession] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(() => {
     return Boolean(localStorage.getItem('token'));
@@ -152,7 +154,29 @@ export default function App() {
     };
   }, [currentUser?._id]);
 
-  // 3. User Actions
+  // 3. Global Incoming WebRTC Call Listener
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleIncomingCall = (data) => {
+      setGlobalCallSession({
+        isIncoming: true,
+        type: data.type,
+        roomId: data.roomId || data.from,
+        signal: data.signal,
+        otherUser: {
+          _id: data.from,
+          name: data.callerName || 'Incoming Caller',
+          avatar: data.avatar || '',
+        },
+      });
+    };
+
+    socket.on('incoming_call', handleIncomingCall);
+    return () => socket.off('incoming_call', handleIncomingCall);
+  }, []);
+
+  // 4. User Actions
   const handleLogout = () => {
     localStorage.removeItem('token');
     disconnectSocket();
@@ -196,7 +220,7 @@ export default function App() {
     );
   };
 
-  // 4. Session Loading Screen
+  // 5. Session Loading Screen
   if (isCheckingAuth) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-[#f8f9fc] text-slate-500">
@@ -206,7 +230,7 @@ export default function App() {
     );
   }
 
-  // 5. Unauthenticated Modal
+  // 6. Unauthenticated Modal
   if (!currentUser) {
     return <AuthModal onAuthSuccess={(user) => setCurrentUser(user)} />;
   }
@@ -228,6 +252,7 @@ export default function App() {
             rooms={rooms}
             activeRoom={activeRoom}
             isLoading={isLoadingRooms}
+            currentUser={currentUser}
             onSelectRoom={setActiveRoom}
           />
           <ChatArea activeRoom={activeRoom} currentUser={currentUser} socket={socket} />
@@ -263,7 +288,9 @@ export default function App() {
         <ContactsView onStartChatWithUser={handleStartDirectChat} />
       )}
 
-      {activeTab === 'calls' && <CallsView />}
+      {activeTab === 'calls' && (
+        <CallsView currentUser={currentUser} socket={socket} />
+      )}
 
       {activeTab === 'saved' && <SavedMessagesView />}
 
@@ -272,6 +299,16 @@ export default function App() {
           currentUser={currentUser}
           onLogout={handleLogout}
           onUserUpdated={handleUserUpdated}
+        />
+      )}
+
+      {/* Global Call Screen Overlay */}
+      {globalCallSession && (
+        <CallModal
+          callData={globalCallSession}
+          currentUser={currentUser}
+          socket={socket}
+          onClose={() => setGlobalCallSession(null)}
         />
       )}
     </div>

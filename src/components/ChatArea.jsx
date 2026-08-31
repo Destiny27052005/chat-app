@@ -1,11 +1,27 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import CallModal from './CallModal.jsx';
 import {
-  Users, Search, Phone, Video, MoreVertical, Paperclip,
-  Smile, Send, CheckCheck, Download, Trash2, FileText, Loader2
+  Users,
+  Search,
+  Phone,
+  Video,
+  MoreVertical,
+  Paperclip,
+  Smile,
+  Send,
+  CheckCheck,
+  Download,
+  Trash2,
+  FileText,
+  Loader2,
+  X,
+  DownloadCloud
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const QUICK_EMOJIS = ['👍', '❤️', '🔥', '😂', '🎉', '👏', '🚀', '💯', '😊', '🙌', '✨', '🙏'];
 
 export default function ChatArea({ activeRoom, currentUser, socket }) {
   const [messages, setMessages] = useState([]);
@@ -13,8 +29,19 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
   const [uploading, setUploading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // Top Action States
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // WebRTC Active Call State
+  const [activeCallSession, setActiveCallSession] = useState(null);
+
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const moreMenuRef = useRef(null);
+  const emojiPickerRef = useRef(null);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -36,7 +63,21 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
-  // Helper to determine contact details for 1-on-1 vs Group chats
+  // Close popovers when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
+        setShowMoreMenu(false);
+      }
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Helper for 1-on-1 vs Group details
   const otherMember = !activeRoom?.isGroup
     ? activeRoom?.members?.find((m) => (m._id || m) !== currentUser?._id)
     : null;
@@ -51,7 +92,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
   const isContactOnline = activeRoom?.isGroup ? false : Boolean(otherMember?.isOnline);
 
-  // 1. Fetch Room History & Manage Room Socket Subscriptions
+  // 1. Fetch Room History & Socket Subscriptions
   useEffect(() => {
     if (!activeRoom?._id) return;
 
@@ -79,10 +120,8 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
     fetchMessages();
 
-    // Join room channel
-    socket.emit('join_room', activeRoom._id);
+    socket?.emit('join_room', activeRoom._id);
 
-    // 2. Real-time Listeners
     const handleReceiveMessage = (newMsg) => {
       const incomingRoomId = newMsg.roomId || newMsg.room;
       if (incomingRoomId === activeRoom._id) {
@@ -103,21 +142,46 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       );
     };
 
-    socket.on('receive_message', handleReceiveMessage);
-    socket.on('message_deleted', handleMessageDeleted);
+    socket?.on('receive_message', handleReceiveMessage);
+    socket?.on('message_deleted', handleMessageDeleted);
 
     return () => {
       isMounted = false;
-      socket.emit('leave_room', activeRoom._id);
-      socket.off('receive_message', handleReceiveMessage);
-      socket.off('message_deleted', handleMessageDeleted);
+      setShowSearch(false);
+      setSearchQuery('');
+      setShowMoreMenu(false);
+      socket?.emit('leave_room', activeRoom._id);
+      socket?.off('receive_message', handleReceiveMessage);
+      socket?.off('message_deleted', handleMessageDeleted);
     };
   }, [activeRoom?._id, socket]);
 
+  // 2. Listen for Incoming Live WebRTC Calls
+  useEffect(() => {
+    if (!socket || !activeRoom?._id) return;
+
+    const handleIncomingCall = (data) => {
+      if (data.roomId === activeRoom._id) {
+        setActiveCallSession({
+          isIncoming: true,
+          type: data.type,
+          roomId: data.roomId,
+          signal: data.signal,
+          otherUser: { name: data.callerName, avatar: displayAvatar },
+        });
+      }
+    };
+
+    socket.on('incoming_call', handleIncomingCall);
+    return () => socket.off('incoming_call', handleIncomingCall);
+  }, [socket, activeRoom?._id, displayAvatar]);
+
   // Auto-scroll when messages update
   useEffect(() => {
-    scrollToBottom('smooth');
-  }, [messages]);
+    if (!showSearch) {
+      scrollToBottom('smooth');
+    }
+  }, [messages, showSearch]);
 
   // 3. Send Message
   const handleSendMessage = () => {
@@ -133,20 +197,19 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       createdAt: new Date().toISOString(),
     };
 
-    // Optimistic UI update
     setMessages((prev) => [...prev, payload]);
 
-    // Emit to backend
-    socket.emit('send_message', {
+    socket?.emit('send_message', {
       roomId: activeRoom._id,
       content: inputMessage.trim(),
       file: null,
     });
 
     setInputMessage('');
+    setShowEmojiPicker(false);
   };
 
-  // 4. Handle File Upload
+  // 4. File Upload
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || !activeRoom?._id) return;
@@ -181,7 +244,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
       };
       setMessages((prev) => [...prev, optimisticMsg]);
 
-      socket.emit('send_message', {
+      socket?.emit('send_message', {
         roomId: activeRoom._id,
         content: '',
         file: filePayload,
@@ -196,7 +259,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
   // 5. Delete Message
   const handleDeleteMessage = (messageId) => {
-    socket.emit('delete_message', {
+    socket?.emit('delete_message', {
       messageId,
       roomId: activeRoom._id,
     });
@@ -210,6 +273,52 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
     );
   };
 
+  // 6. Start WebRTC Voice or Video Call
+  const handleStartCall = (type) => {
+    setActiveCallSession({
+      isIncoming: false,
+      type,
+      roomId: activeRoom._id,
+      otherUser: { name: displayName, avatar: displayAvatar },
+    });
+  };
+
+  const handleClearChat = () => {
+    if (window.confirm('Clear messages from your current screen view?')) {
+      setMessages([]);
+      setShowMoreMenu(false);
+    }
+  };
+
+  const handleExportChat = () => {
+    const transcript = messages
+      .map(
+        (m) =>
+          `[${new Date(m.createdAt).toLocaleString()}] ${m.sender?.name || 'User'}: ${
+            m.content || m.file?.name || ''
+          }`
+      )
+      .join('\n');
+
+    const blob = new Blob([transcript], { type: 'text/plain;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${displayName.replace(/\s+/g, '_')}_transcript.txt`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShowMoreMenu(false);
+  };
+
+  const displayMessages = searchQuery.trim()
+    ? messages.filter(
+        (m) =>
+          m.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          m.file?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : messages;
+
   if (!activeRoom) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 text-slate-400">
@@ -219,9 +328,9 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#fafafc] h-full overflow-hidden">
+    <div className="flex-1 flex flex-col bg-[#fafafc] h-full overflow-hidden relative">
       {/* Top Header */}
-      <div className="h-16 px-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+      <div className="h-16 px-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-3">
           {displayAvatar ? (
             <img src={displayAvatar} className="w-10 h-10 rounded-full object-cover" alt={displayName} />
@@ -242,19 +351,112 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-slate-400">
-          <button className="hover:text-slate-600 transition p-1"><Search size={18} /></button>
-          <button className="hover:text-slate-600 transition p-1"><Phone size={18} /></button>
-          <button className="hover:text-slate-600 transition p-1"><Video size={18} /></button>
-          <button className="hover:text-slate-600 transition p-1"><MoreVertical size={18} /></button>
+        {/* Action Controls */}
+        <div className="flex items-center gap-2 text-slate-500">
+          <button
+            type="button"
+            onClick={() => setShowSearch((prev) => !prev)}
+            className={`p-2 rounded-xl transition ${
+              showSearch ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-slate-100'
+            }`}
+            title="Search in conversation"
+          >
+            <Search size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleStartCall('voice')}
+            className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-500 hover:text-indigo-600"
+            title="Start voice call"
+          >
+            <Phone size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleStartCall('video')}
+            className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-500 hover:text-indigo-600"
+            title="Start video call"
+          >
+            <Video size={18} />
+          </button>
+
+          {/* More Menu Popover */}
+          <div className="relative" ref={moreMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowMoreMenu((prev) => !prev)}
+              className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-500 hover:text-slate-800"
+              title="More options"
+            >
+              <MoreVertical size={18} />
+            </button>
+
+            {showMoreMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                <button
+                  type="button"
+                  onClick={handleExportChat}
+                  className="w-full px-4 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
+                >
+                  <DownloadCloud size={14} className="text-slate-400" />
+                  <span>Export Transcript</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  className="w-full px-4 py-2 text-xs text-left text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-medium"
+                >
+                  <Trash2 size={14} />
+                  <span>Clear Screen View</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* In-Chat Search Bar */}
+      {showSearch && (
+        <div className="bg-white border-b border-slate-100 px-6 py-2.5 flex items-center justify-between shrink-0 shadow-xs z-10">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <Search size={15} className="text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search in this conversation..."
+              value={searchQuery}
+              autoFocus
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full text-xs bg-transparent focus:outline-none text-slate-700 placeholder:text-slate-400"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            {searchQuery && (
+              <span>
+                {displayMessages.length} {displayMessages.length === 1 ? 'match' : 'matches'}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setShowSearch(false);
+                setSearchQuery('');
+              }}
+              className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
         <div className="flex justify-center">
           <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-            Conversation History
+            {searchQuery ? `Searching: "${searchQuery}"` : 'Conversation History'}
           </span>
         </div>
 
@@ -263,12 +465,14 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
             <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
             Loading messages...
           </div>
-        ) : messages.length === 0 ? (
+        ) : displayMessages.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-xs">
-            No messages yet. Send a message to start the conversation!
+            {searchQuery
+              ? 'No matching messages found.'
+              : 'No messages yet. Send a message to start the conversation!'}
           </div>
         ) : (
-          messages.map((msg) => {
+          displayMessages.map((msg) => {
             const senderId = msg.sender?._id || msg.senderId || msg.sender;
             const isMe = senderId === currentUser._id;
 
@@ -276,7 +480,10 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
               <div key={msg._id} className={`flex gap-3 group ${isMe ? 'justify-end' : 'justify-start'}`}>
                 {!isMe && (
                   <img
-                    src={msg.sender?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${msg.sender?.name || 'User'}`}
+                    src={
+                      msg.sender?.avatar ||
+                      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(msg.sender?.name || 'User')}`
+                    }
                     className="w-8 h-8 rounded-full object-cover self-end mb-1"
                     alt={msg.sender?.name || 'Sender'}
                   />
@@ -323,6 +530,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
                     {isMe && !msg.isDeleted && (
                       <button
+                        type="button"
                         onClick={() => handleDeleteMessage(msg._id)}
                         className="absolute -left-6 top-2 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-rose-500 transition"
                         title="Delete message"
@@ -346,8 +554,30 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Bar */}
-      <div className="p-4 bg-white border-t border-slate-100 shrink-0">
+      {/* Input Composer */}
+      <div className="p-4 bg-white border-t border-slate-100 shrink-0 relative">
+        {/* Quick Emoji Picker Popover */}
+        {showEmojiPicker && (
+          <div
+            ref={emojiPickerRef}
+            className="absolute bottom-20 left-6 bg-white border border-slate-200/80 rounded-2xl shadow-xl p-3 z-30 flex gap-2 flex-wrap max-w-xs animate-in zoom-in-95 duration-100"
+          >
+            {QUICK_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  setInputMessage((prev) => prev + emoji);
+                  setShowEmojiPicker(false);
+                }}
+                className="text-xl p-1.5 hover:bg-slate-100 rounded-xl transition"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/70 rounded-2xl px-3 py-2">
           <input
             type="file"
@@ -360,7 +590,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="text-slate-400 hover:text-slate-600 transition disabled:opacity-50"
+            className="text-slate-400 hover:text-slate-600 transition disabled:opacity-50 p-1"
             title="Attach file"
           >
             {uploading ? <Loader2 size={18} className="animate-spin text-indigo-600" /> : <Paperclip size={18} />}
@@ -368,7 +598,7 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
 
           <input
             type="text"
-            placeholder={uploading ? "Uploading file..." : "Type a message..."}
+            placeholder={uploading ? 'Uploading file...' : 'Type a message...'}
             value={inputMessage}
             disabled={uploading}
             onChange={(e) => setInputMessage(e.target.value)}
@@ -381,7 +611,14 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
             className="flex-1 bg-transparent text-sm focus:outline-none text-slate-700"
           />
 
-          <button type="button" className="text-slate-400 hover:text-slate-600 transition">
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
+            className={`p-1 transition rounded-lg ${
+              showEmojiPicker ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-600'
+            }`}
+            title="Emojis"
+          >
             <Smile size={18} />
           </button>
 
@@ -395,6 +632,16 @@ export default function ChatArea({ activeRoom, currentUser, socket }) {
           </button>
         </div>
       </div>
+
+      {/* Real Peer-to-Peer Live Voice & Video Modal */}
+      {activeCallSession && (
+        <CallModal
+          callData={activeCallSession}
+          currentUser={currentUser}
+          socket={socket}
+          onClose={() => setActiveCallSession(null)}
+        />
+      )}
     </div>
   );
 }

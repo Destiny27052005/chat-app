@@ -210,7 +210,7 @@ export default function GroupsView({ rooms = [], onSelectRoom, onRoomCreated }) 
 
               {group.lastMessage?.content && (
                 <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="truncate max-w-[200px]">{group.lastMessage.content}</span>
+                  <span className="truncate max-w-50">{group.lastMessage.content}</span>
                 </div>
               )}
             </div>
