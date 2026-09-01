@@ -25,7 +25,7 @@ export default function CallsView({ currentUser, socket }) {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // 1. Fetch real call records directly inside effect
+  // 1. Fetch real call records
   useEffect(() => {
     let isMounted = true;
 
@@ -114,7 +114,7 @@ export default function CallsView({ currentUser, socket }) {
 
   const handleCloseCall = () => {
     setActiveCallSession(null);
-    setRefreshIndex((prev) => prev + 1); // Triggers real log reload cleanly
+    setRefreshIndex((prev) => prev + 1);
   };
 
   const filteredLogs = callLogs.filter((call) => {
@@ -123,23 +123,23 @@ export default function CallsView({ currentUser, socket }) {
   });
 
   return (
-    <div className="flex-1 bg-white flex flex-col p-8 overflow-y-auto relative h-full">
+    <div className="flex-1 bg-[#fafafc] dark:bg-slate-950 flex flex-col p-6 md:p-10 overflow-y-auto relative h-full max-w-5xl mx-auto w-full transition-colors">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200/80 dark:border-slate-800 shrink-0">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Call History</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Real-time voice and video records</p>
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Call History</h2>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Real-time voice and video records</p>
         </div>
 
         {/* Filter Switcher */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+        <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
               filter === 'all'
-                ? 'bg-white text-indigo-600 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
             All Calls
@@ -147,10 +147,10 @@ export default function CallsView({ currentUser, socket }) {
           <button
             type="button"
             onClick={() => setFilter('missed')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
               filter === 'missed'
-                ? 'bg-white text-rose-600 shadow-xs'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
             Missed
@@ -159,35 +159,38 @@ export default function CallsView({ currentUser, socket }) {
       </div>
 
       {/* Call List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+      <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 pr-1">
         {loading ? (
-          <div className="flex items-center justify-center p-12 text-slate-400 text-xs">
+          <div className="flex items-center justify-center p-16 text-slate-400 dark:text-slate-500 text-xs">
             <Loader2 className="w-5 h-5 animate-spin mr-2 text-indigo-600" />
             Loading call records...
           </div>
         ) : filteredLogs.length === 0 ? (
-          <div className="text-center py-16 text-slate-400 text-xs">
-            {filter === 'missed' ? 'No missed calls found' : 'No call history yet. Start a call from the contacts list.'}
+          <div className="text-center py-16 text-slate-400 dark:text-slate-600 text-xs">
+            {filter === 'missed'
+              ? 'No missed calls found'
+              : 'No call history yet. Start a call from the contacts list.'}
           </div>
         ) : (
           filteredLogs.map((call) => {
-            const isOutgoing = (call.caller?._id || call.caller) === currentUser?._id;
+            const currentUserId = currentUser?._id?.toString();
+            const isOutgoing = (call.caller?._id || call.caller)?.toString() === currentUserId;
             const otherParty = isOutgoing ? call.receiver : call.caller;
             const isMissed = call.status === 'missed';
 
             return (
               <div
                 key={call._id}
-                className="py-3.5 px-2 flex items-center justify-between hover:bg-slate-50/70 rounded-2xl transition"
+                className="py-3.5 px-3 flex items-center justify-between hover:bg-white dark:hover:bg-slate-900/60 rounded-2xl transition border border-transparent hover:border-slate-100 dark:hover:border-slate-800 shadow-xs"
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-3.5 min-w-0">
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
                       isMissed
-                        ? 'bg-rose-50 text-rose-500'
+                        ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-500 dark:text-rose-400 border border-rose-100 dark:border-rose-900/40'
                         : isOutgoing
-                        ? 'bg-indigo-50 text-indigo-600'
-                        : 'bg-emerald-50 text-emerald-600'
+                        ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40'
+                        : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40'
                     }`}
                   >
                     {isMissed ? (
@@ -199,27 +202,27 @@ export default function CallsView({ currentUser, socket }) {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     {otherParty?.avatar ? (
                       <img
                         src={otherParty.avatar}
                         alt={otherParty.name || 'User'}
-                        className="w-10 h-10 rounded-full object-cover border border-slate-100"
+                        className="w-10 h-10 rounded-full object-cover border border-slate-100 dark:border-slate-800 shrink-0"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-200 dark:border-slate-700">
                         {otherParty?.name?.charAt(0) || <Users size={16} />}
                       </div>
                     )}
 
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-800">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                         {otherParty?.name || 'Unknown User'}
                       </h4>
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                      <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                         <span>{formatCallDate(call.createdAt)}</span>
                         <span>•</span>
-                        <span className={isMissed ? 'text-rose-500 font-medium' : ''}>
+                        <span className={isMissed ? 'text-rose-500 dark:text-rose-400 font-medium' : ''}>
                           {isMissed ? 'Missed Call' : formatDuration(call.duration)}
                         </span>
                       </div>
@@ -228,11 +231,11 @@ export default function CallsView({ currentUser, socket }) {
                 </div>
 
                 {otherParty && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleStartCall(otherParty, false)}
-                      className="p-2.5 rounded-xl border border-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 transition"
+                      className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 text-slate-400 transition cursor-pointer"
                       title="Audio Call"
                     >
                       <Phone size={16} />
@@ -240,7 +243,7 @@ export default function CallsView({ currentUser, socket }) {
                     <button
                       type="button"
                       onClick={() => handleStartCall(otherParty, true)}
-                      className="p-2.5 rounded-xl border border-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-500 transition"
+                      className="p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 text-slate-400 transition cursor-pointer"
                       title="Video Call"
                     >
                       <Video size={16} />

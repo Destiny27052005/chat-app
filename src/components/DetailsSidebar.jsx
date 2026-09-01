@@ -76,9 +76,9 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
 
         if (isMounted) {
           const currentMemberIds = new Set(
-            memberList.map((m) => (typeof m === 'object' ? m._id : m))
+            memberList.map((m) => (typeof m === 'object' ? m._id?.toString() : m?.toString()))
           );
-          setAvailableContacts(res.data.filter((u) => !currentMemberIds.has(u._id)));
+          setAvailableContacts(res.data.filter((u) => !currentMemberIds.has(u._id?.toString())));
         }
       } catch (err) {
         console.error('Failed to load contacts:', err);
@@ -139,9 +139,13 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
 
   if (!activeRoom) return null;
 
-  // Resolve direct contact details
+  // Resolve direct contact details using string IDs
+  const currentId = currentUser?._id?.toString();
   const otherMember = !isGroup
-    ? memberList.find((m) => (m._id || m) !== currentUser?._id)
+    ? memberList.find((m) => {
+        const mId = (m?._id || m)?.toString();
+        return mId && mId !== currentId;
+      })
     : null;
 
   const roomName = isGroup
@@ -219,7 +223,7 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
   );
 
   return (
-    <div className="w-80 bg-white border-l border-slate-100 p-6 flex flex-col justify-between overflow-y-auto shrink-0 select-none h-full relative">
+    <div className="w-80 bg-white dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-800 p-6 flex flex-col justify-between overflow-y-auto shrink-0 select-none h-full relative transition-colors">
       <div>
         {/* Contact / Room Header */}
         <div className="flex flex-col items-center text-center mb-6">
@@ -227,18 +231,18 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
             <img
               src={roomAvatar}
               alt={roomName}
-              className="w-16 h-16 rounded-2xl object-cover mb-3 shadow-md shadow-slate-100 border border-slate-100"
+              className="w-16 h-16 rounded-2xl object-cover mb-3 shadow-md border border-slate-100 dark:border-slate-800"
             />
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold mb-3 shadow-md shadow-indigo-100 text-xl">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold mb-3 shadow-md shadow-indigo-600/20 text-xl">
               {isGroup ? <Users size={28} /> : <span>{roomName.charAt(0)}</span>}
             </div>
           )}
 
-          <h3 className="font-bold text-slate-800 text-base leading-snug truncate max-w-full px-2">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base leading-snug truncate max-w-full px-2">
             {roomName}
           </h3>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
             {isGroup
               ? `${memberList.length} members`
               : isOnline
@@ -256,9 +260,9 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
                 setContactSearch('');
                 setShowAddMember(true);
               }}
-              className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-50 text-slate-600 transition"
+              className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
             >
-              <div className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                 <UserPlus size={16} />
               </div>
               <span className="text-[11px] font-medium">Add</span>
@@ -277,9 +281,9 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
                 searchToggle?.click();
               }
             }}
-            className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-50 text-slate-600 transition"
+            className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
           >
-            <div className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center">
               <Search size={16} />
             </div>
             <span className="text-[11px] font-medium">Search</span>
@@ -289,11 +293,13 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
           <button
             type="button"
             onClick={() => setIsMuted((prev) => !prev)}
-            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition ${
-              isMuted ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-600 hover:bg-slate-50'
+            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition cursor-pointer ${
+              isMuted
+                ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/40'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
-            <div className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center">
               {isMuted ? <BellOff size={16} /> : <Bell size={16} />}
             </div>
             <span className="text-[11px] font-medium">{isMuted ? 'Muted' : 'Mute'}</span>
@@ -304,28 +310,28 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
             <button
               type="button"
               onClick={() => setShowMoreMenu((prev) => !prev)}
-              className="w-full flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-50 text-slate-600 transition"
+              className="w-full flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
             >
-              <div className="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                 <MoreVertical size={16} />
               </div>
               <span className="text-[11px] font-medium">More</span>
             </button>
 
             {showMoreMenu && (
-              <div className="absolute right-0 bottom-12 w-48 bg-white border border-slate-100 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute right-0 bottom-12 w-48 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                 <button
                   type="button"
                   onClick={handleCopyEmailOrId}
-                  className="w-full px-4 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
+                  className="w-full px-4 py-2 text-xs text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 font-medium cursor-pointer"
                 >
-                  {copiedText ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} className="text-slate-400" />}
+                  {copiedText ? <Check size={14} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={14} className="text-slate-400" />}
                   <span>{copiedText ? 'Copied!' : isGroup ? 'Copy Room ID' : 'Copy Email'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleExportTranscript}
-                  className="w-full px-4 py-2 text-xs text-left text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium"
+                  className="w-full px-4 py-2 text-xs text-left text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 font-medium cursor-pointer"
                 >
                   <DownloadCloud size={14} className="text-slate-400" />
                   <span>Export Chat</span>
@@ -337,23 +343,23 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
 
         {/* About Section */}
         <div className="mb-6">
-          <h5 className="text-xs font-bold text-slate-800 mb-1.5">
+          <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-1.5">
             {isGroup ? 'Description' : 'About'}
           </h5>
-          <p className="text-xs text-slate-500 leading-relaxed wrap-break-word">
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed wrap-break-word">
             {userAbout}
           </p>
         </div>
 
         {/* Interactive Drawers */}
-        <div className="space-y-1 mb-6 border-t border-b border-slate-100 py-3">
+        <div className="space-y-1 mb-6 border-t border-b border-slate-100 dark:border-slate-800 py-3">
           {/* Media, Links & Docs */}
           <div
             onClick={() => setShowMediaModal(true)}
-            className="flex items-center justify-between py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 cursor-pointer transition group"
+            className="flex items-center justify-between py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition group"
           >
             <div className="flex items-center gap-2">
-              <FileText size={16} className="text-slate-400 group-hover:text-indigo-600 transition" />
+              <FileText size={16} className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition" />
               <span>Media, Links, and Docs</span>
             </div>
             <div className="flex items-center gap-1 text-slate-400">
@@ -364,10 +370,10 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
           {/* Pinned Messages */}
           <div
             onClick={() => setShowPinnedModal(true)}
-            className="flex items-center justify-between py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 cursor-pointer transition group"
+            className="flex items-center justify-between py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition group"
           >
             <div className="flex items-center gap-2">
-              <Pin size={16} className="text-slate-400 group-hover:text-indigo-600 transition" />
+              <Pin size={16} className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition" />
               <span>Pinned Messages</span>
             </div>
             <div className="flex items-center gap-1 text-slate-400">
@@ -379,18 +385,18 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
           {/* Notification Quick Toggle */}
           <div
             onClick={() => setIsMuted((prev) => !prev)}
-            className="flex items-center justify-between py-2 text-xs font-semibold text-slate-700 hover:text-indigo-600 cursor-pointer transition group"
+            className="flex items-center justify-between py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer transition group"
           >
             <div className="flex items-center gap-2">
               {isMuted ? (
-                <BellOff size={16} className="text-indigo-600" />
+                <BellOff size={16} className="text-indigo-600 dark:text-indigo-400" />
               ) : (
-                <Bell size={16} className="text-slate-400 group-hover:text-indigo-600 transition" />
+                <Bell size={16} className="text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition" />
               )}
               <span>Notifications</span>
             </div>
             <div className="flex items-center gap-1 text-slate-400">
-              <span className={isMuted ? 'text-indigo-600 font-bold' : ''}>
+              <span className={isMuted ? 'text-indigo-600 dark:text-indigo-400 font-bold' : ''}>
                 {isMuted ? 'Muted' : 'On'}
               </span>
               <ChevronRight size={14} />
@@ -402,16 +408,16 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
         {isGroup && (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h5 className="text-xs font-bold text-slate-800">Members</h5>
-              <span className="text-xs text-slate-400">{memberList.length}</span>
+              <h5 className="text-xs font-bold text-slate-800 dark:text-slate-100">Members</h5>
+              <span className="text-xs text-slate-400 dark:text-slate-500">{memberList.length}</span>
             </div>
 
             <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
               {memberList.map((member) => {
                 const memberObj = typeof member === 'object' ? member : { _id: member };
-                const memberId = memberObj._id;
+                const memberId = memberObj._id?.toString();
                 const isAdmin = activeRoom.admins?.some(
-                  (admin) => (admin._id || admin) === memberId
+                  (admin) => (admin._id || admin)?.toString() === memberId
                 );
 
                 return (
@@ -425,27 +431,27 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
                               memberObj.name || 'User'
                             )}`
                           }
-                          className="w-8 h-8 rounded-full object-cover"
+                          className="w-8 h-8 rounded-full object-cover border border-slate-100 dark:border-slate-800"
                           alt={memberObj.name || 'Member'}
                         />
                         <span
-                          className={`absolute bottom-0 right-0 w-2 h-2 border border-white rounded-full ${
-                            memberObj.isOnline ? 'bg-emerald-500' : 'bg-slate-300'
+                          className={`absolute bottom-0 right-0 w-2 h-2 border border-white dark:border-slate-900 rounded-full ${
+                            memberObj.isOnline ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'
                           }`}
                         />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 truncate">
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">
                           {memberObj.name || 'Member'}
                         </p>
-                        <p className={`text-[10px] ${memberObj.isOnline ? 'text-emerald-600 font-medium' : 'text-slate-400'}`}>
+                        <p className={`text-[10px] ${memberObj.isOnline ? 'text-emerald-600 dark:text-emerald-400 font-medium' : 'text-slate-400 dark:text-slate-500'}`}>
                           {memberObj.isOnline ? 'Online' : 'Offline'}
                         </p>
                       </div>
                     </div>
 
                     {isAdmin && (
-                      <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-semibold shrink-0">
+                      <span className="text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded font-semibold shrink-0">
                         Admin
                       </span>
                     )}
@@ -459,42 +465,42 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
 
       {/* Media, Links & Docs Modal */}
       {showMediaModal && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 select-none">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-bold text-slate-800">Media, Links & Documents</h4>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Media, Links & Documents</h4>
               <button
                 type="button"
                 onClick={() => setShowMediaModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
               >
                 <X size={16} />
               </button>
             </div>
 
-            <div className="max-h-72 overflow-y-auto space-y-2 mb-4">
+            <div className="max-h-72 overflow-y-auto space-y-2 mb-4 pr-1">
               {loadingMedia ? (
-                <div className="py-8 flex items-center justify-center text-xs text-slate-400 gap-1.5">
+                <div className="py-8 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500 gap-1.5">
                   <Loader2 size={16} className="animate-spin text-indigo-600" />
                   <span>Loading files...</span>
                 </div>
               ) : roomMedia.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
+                <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
                   No files or documents shared in this conversation yet.
                 </div>
               ) : (
                 roomMedia.map((file) => (
                   <div
                     key={file._id}
-                    className="flex items-center justify-between p-2.5 hover:bg-slate-50 border border-slate-100 rounded-xl transition gap-3"
+                    className="flex items-center justify-between p-2.5 bg-slate-50/50 dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-xl transition gap-3"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                         {file.fileType?.includes('image') ? <ImageIcon size={15} /> : <FileText size={15} />}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 truncate">{file.name}</p>
-                        <p className="text-[10px] text-slate-400">{file.size} • {file.sender}</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{file.name}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500">{file.size} • {file.sender}</p>
                       </div>
                     </div>
                     <a
@@ -502,7 +508,7 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
                       target="_blank"
                       rel="noopener noreferrer"
                       download
-                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                      className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition"
                     >
                       <Download size={15} />
                     </a>
@@ -514,7 +520,7 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
             <button
               type="button"
               onClick={() => setShowMediaModal(false)}
-              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+              className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
             >
               Close
             </button>
@@ -524,19 +530,19 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
 
       {/* Pinned Messages Modal */}
       {showPinnedModal && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 text-center">
-            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 select-none">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 text-center">
+            <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center mx-auto mb-3">
               <Pin size={20} />
             </div>
-            <h4 className="text-sm font-bold text-slate-800 mb-1">No Pinned Messages</h4>
-            <p className="text-xs text-slate-400 mb-6">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-1">No Pinned Messages</h4>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
               Important messages pinned by participants will appear here.
             </p>
             <button
               type="button"
               onClick={() => setShowPinnedModal(false)}
-              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+              className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
             >
               Close
             </button>
@@ -546,45 +552,45 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
 
       {/* Add Member Modal */}
       {showAddMember && (
-        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 select-none">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-bold text-slate-800">Add Member to Group</h4>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Add Member to Group</h4>
               <button
                 type="button"
                 onClick={() => setShowAddMember(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg"
               >
                 <X size={16} />
               </button>
             </div>
 
             <div className="relative mb-3">
-              <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search registered users..."
                 value={contactSearch}
                 onChange={(e) => setContactSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700"
+                className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
               />
             </div>
 
-            <div className="max-h-60 overflow-y-auto space-y-2 mb-4">
+            <div className="max-h-60 overflow-y-auto space-y-2 mb-4 pr-1">
               {loadingContacts ? (
-                <div className="py-6 flex items-center justify-center text-xs text-slate-400 gap-1.5">
+                <div className="py-6 flex items-center justify-center text-xs text-slate-400 dark:text-slate-500 gap-1.5">
                   <Loader2 size={14} className="animate-spin text-indigo-600" />
                   <span>Loading contacts...</span>
                 </div>
               ) : filteredContacts.length === 0 ? (
-                <div className="py-6 text-center text-xs text-slate-400">
+                <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
                   {contactSearch ? 'No users matching your search' : 'No new contacts available to add'}
                 </div>
               ) : (
                 filteredContacts.map((contact) => (
                   <div
                     key={contact._id}
-                    className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition"
+                    className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-xl transition"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
@@ -595,18 +601,18 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
                           )}`
                         }
                         alt={contact.name}
-                        className="w-8 h-8 rounded-full object-cover"
+                        className="w-8 h-8 rounded-full object-cover border border-slate-100 dark:border-slate-800"
                       />
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 truncate">{contact.name}</p>
-                        <p className="text-[10px] text-slate-400 truncate">{contact.email}</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{contact.name}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{contact.email}</p>
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => handleAddMember(contact._id)}
                       disabled={actionMemberId === contact._id}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition disabled:opacity-50"
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition disabled:opacity-50 cursor-pointer"
                     >
                       {actionMemberId === contact._id ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -622,7 +628,7 @@ export default function DetailsSidebar({ activeRoom, currentUser, onRoomUpdated 
             <button
               type="button"
               onClick={() => setShowAddMember(false)}
-              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+              className="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition cursor-pointer"
             >
               Close
             </button>

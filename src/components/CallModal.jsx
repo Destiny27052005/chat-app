@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Phone, Users } from 'lucide-react';
 
@@ -24,12 +24,30 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const callDurationRef = useRef(0);
+  const iceCandidatesQueue = useRef([]);
+
+  // Keep latest state / props inside useEffect updates
+  const callDataRef = useRef(callData);
+  const currentUserRef = useRef(currentUser);
+  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
+    callDataRef.current = callData;
+    currentUserRef.current = currentUser;
+    onCloseRef.current = onClose;
     callDurationRef.current = callDuration;
-  }, [callDuration]);
+  }, [callData, currentUser, onClose, callDuration]);
 
-  const cleanup = useCallback(() => {
+  // Duration timer
+  useEffect(() => {
+    let timer;
+    if (callAccepted) {
+      timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [callAccepted]);
+
+  const cleanup = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
@@ -43,19 +61,19 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
       socket.off('ice_candidate');
       socket.off('call_ended');
     }
-  }, [socket]);
+  };
 
-  const saveCallLog = useCallback(async () => {
-    const receiverId = callData.otherUser?._id;
-    if (receiverId && currentUser?._id) {
+  const saveCallLog = async () => {
+    const receiverId = callDataRef.current?.otherUser?._id;
+    if (receiverId && currentUserRef.current?._id) {
       try {
         const token = localStorage.getItem('token');
         await axios.post(
           `${API_BASE_URL}/calls`,
           {
             receiver: receiverId,
-            room: callData.roomId?.length === 24 ? callData.roomId : null,
-            type: callData.type || 'voice',
+            room: callDataRef.current?.roomId?.length === 24 ? callDataRef.current.roomId : null,
+            type: callDataRef.current?.type || 'voice',
             status: callDurationRef.current > 0 ? 'completed' : 'missed',
             duration: callDurationRef.current,
           },
@@ -65,35 +83,30 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
         console.error('Failed to save call log:', err);
       }
     }
-  }, [callData.otherUser?._id, callData.roomId, callData.type, currentUser?._id]);
+  };
 
-  const handleEndCall = useCallback(async () => {
-    socket?.emit('end_call', { roomId: callData.roomId, to: callData.otherUser?._id });
+  const handleEndCall = async () => {
+    socket?.emit('end_call', {
+      roomId: callDataRef.current?.roomId,
+      to: callDataRef.current?.otherUser?._id,
+    });
     await saveCallLog();
     cleanup();
-    onClose();
-  }, [socket, callData.roomId, callData.otherUser?._id, saveCallLog, cleanup, onClose]);
+    onCloseRef.current?.();
+  };
 
-  // Duration timer
-  useEffect(() => {
-    let timer;
-    if (callAccepted) {
-      timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);
-    }
-    return () => clearInterval(timer);
-  }, [callAccepted]);
-
-  // Setup Peer Connection with optimized bandwidth constraints
-  const setupWebRTC = useCallback(async () => {
+  // WebRTC Setup Function
+  const setupWebRTC = async (isAnswering = false) => {
     try {
+      const currentCallData = callDataRef.current;
       const stream = await navigator.mediaDevices.getUserMedia({
         video:
-          callData.type === 'video'
+          currentCallData.type === 'video'
             ? {
-                width: { ideal: 640, max: 1280 },
-                height: { ideal: 480, max: 720 },
-                frameRate: { ideal: 24, max: 30 },
-              }
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 },
+              frameRate: { ideal: 24, max: 30 },
+            }
             : false,
         audio: {
           echoCancellation: true,
@@ -110,96 +123,118 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnectionRef.current = pc;
 
-      // Add local media tracks
+      // Add local tracks
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Receive remote stream
+      // Handle remote incoming track
       pc.ontrack = (event) => {
         if (remoteVideoRef.current && event.streams[0]) {
           remoteVideoRef.current.srcObject = event.streams[0];
         }
       };
 
-      // Send local ICE candidates to peer
+      // Emit local ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && socket) {
           socket.emit('ice_candidate', {
-            roomId: callData.roomId,
-            to: callData.otherUser?._id,
+            roomId: callDataRef.current?.roomId,
+            to: callDataRef.current?.otherUser?._id,
             candidate: event.candidate,
           });
         }
       };
 
-      if (!callData.isIncoming) {
-        // Caller creates Offer
+      // Remote ICE Candidate Listener
+      socket?.on('ice_candidate', async (candidate) => {
+        if (!candidate) return;
+        try {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          } else {
+            iceCandidatesQueue.current.push(candidate);
+          }
+        } catch (e) {
+          console.error('ICE candidate processing error:', e);
+        }
+      });
+
+      // Remote Call Accepted
+      socket?.on('call_accepted', async (signal) => {
+        setCallAccepted(true);
+        if (pc.signalingState !== 'stable') {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal));
+            while (iceCandidatesQueue.current.length > 0) {
+              const queuedCandidate = iceCandidatesQueue.current.shift();
+              await pc.addIceCandidate(new RTCIceCandidate(queuedCandidate));
+            }
+          } catch (e) {
+            console.error('Remote description error on accept:', e);
+          }
+        }
+      });
+
+      // Call Ended by Remote
+      socket?.on('call_ended', async () => {
+        await saveCallLog();
+        cleanup();
+        onCloseRef.current?.();
+      });
+
+      // Offer / Answer Negotiation
+      if (!currentCallData.isIncoming) {
         const offer = await pc.createOffer({
           offerToReceiveAudio: true,
-          offerToReceiveVideo: callData.type === 'video',
+          offerToReceiveVideo: currentCallData.type === 'video',
         });
         await pc.setLocalDescription(offer);
 
         socket?.emit('call_user', {
-          roomId: callData.roomId,
-          userToCall: callData.otherUser?._id,
+          roomId: currentCallData.roomId,
+          userToCall: currentCallData.otherUser?._id,
           signalData: offer,
-          callerName: currentUser?.name,
-          type: callData.type,
+          callerName: currentUserRef.current?.name,
+          type: currentCallData.type,
         });
-      } else if (callData.signal) {
-        // Receiver sets Remote Offer & creates Answer
-        await pc.setRemoteDescription(new RTCSessionDescription(callData.signal));
+      } else if (isAnswering && currentCallData.signal) {
+        await pc.setRemoteDescription(new RTCSessionDescription(currentCallData.signal));
+
+        while (iceCandidatesQueue.current.length > 0) {
+          const queuedCandidate = iceCandidatesQueue.current.shift();
+          await pc.addIceCandidate(new RTCIceCandidate(queuedCandidate));
+        }
+
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
         socket?.emit('answer_call', {
-          toRoom: callData.roomId,
-          to: callData.otherUser?._id,
+          toRoom: currentCallData.roomId,
+          to: currentCallData.otherUser?._id,
           signal: answer,
         });
       }
-
-      socket?.on('call_accepted', async (signal) => {
-        setCallAccepted(true);
-        if (pc.signalingState !== 'stable') {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal));
-        }
-      });
-
-      socket?.on('ice_candidate', async (candidate) => {
-        try {
-          if (pc.remoteDescription) {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          }
-        } catch (e) {
-          console.error('ICE candidate error:', e);
-        }
-      });
-
-      socket?.on('call_ended', async () => {
-        await saveCallLog();
-        cleanup();
-        onClose();
-      });
     } catch (err) {
-      console.error('Media Device / WebRTC Error:', err);
+      console.error('Media Device / WebRTC Setup Error:', err);
       alert('Camera or Microphone access was denied or not found.');
-      onClose();
+      cleanup();
+      onCloseRef.current?.();
     }
-  }, [callData, currentUser, socket, cleanup, onClose, saveCallLog]);
+  };
 
+  // Mount/Unmount lifecycle
   useEffect(() => {
     if (!callData.isIncoming) {
-      setupWebRTC();
+      setupWebRTC(false);
     }
     return () => {
       cleanup();
     };
-  }, [callData.isIncoming, setupWebRTC, cleanup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAcceptIncomingCall = () => {
     setCallAccepted(true);
-    setupWebRTC();
+    setupWebRTC(true);
   };
 
   const toggleMute = () => {
@@ -231,7 +266,6 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
   return (
     <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 select-none">
       <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-6 max-w-lg w-full shadow-2xl flex flex-col items-center relative overflow-hidden animate-in zoom-in-95 duration-150">
-        {/* Active Connected Screen */}
         {callAccepted ? (
           <>
             {callData.type === 'video' ? (
@@ -286,9 +320,8 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
               <button
                 type="button"
                 onClick={toggleMute}
-                className={`p-3.5 rounded-full transition ${
-                  isMuted ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-800 hover:bg-slate-700 text-white'
-                }`}
+                className={`p-3.5 rounded-full transition cursor-pointer ${isMuted ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-800 hover:bg-slate-700 text-white'
+                  }`}
                 title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
               >
                 {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
@@ -297,7 +330,7 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
               <button
                 type="button"
                 onClick={handleEndCall}
-                className="p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/30 transition transform hover:scale-105"
+                className="p-4 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/30 transition transform hover:scale-105 cursor-pointer"
                 title="End Call"
               >
                 <PhoneOff size={22} />
@@ -307,9 +340,8 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
                 <button
                   type="button"
                   onClick={toggleVideo}
-                  className={`p-3.5 rounded-full transition ${
-                    isVideoOff ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-800 hover:bg-slate-700 text-white'
-                  }`}
+                  className={`p-3.5 rounded-full transition cursor-pointer ${isVideoOff ? 'bg-rose-500/20 text-rose-400' : 'bg-slate-800 hover:bg-slate-700 text-white'
+                    }`}
                   title={isVideoOff ? 'Turn on Camera' : 'Turn off Camera'}
                 >
                   {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
@@ -318,7 +350,6 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
             </div>
           </>
         ) : (
-          /* Incoming Call Ringing Screen */
           <div className="flex flex-col items-center py-6">
             <div className="relative mb-4">
               <div className="w-24 h-24 rounded-full bg-indigo-600/30 animate-ping absolute inset-0" />
@@ -344,7 +375,7 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
               <button
                 type="button"
                 onClick={handleAcceptIncomingCall}
-                className="p-4 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition transform hover:scale-110 flex items-center justify-center"
+                className="p-4 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30 transition transform hover:scale-110 flex items-center justify-center cursor-pointer"
                 title="Accept"
               >
                 <Phone size={24} />
@@ -353,7 +384,7 @@ export default function CallModal({ callData, currentUser, socket, onClose }) {
               <button
                 type="button"
                 onClick={handleEndCall}
-                className="p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition transform hover:scale-110 flex items-center justify-center"
+                className="p-4 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition transform hover:scale-110 flex items-center justify-center cursor-pointer"
                 title="Decline"
               >
                 <PhoneOff size={24} />
